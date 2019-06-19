@@ -45,7 +45,7 @@ public enum Middlewares {
     
     /// Modifying a middleware with takeLatest prevents previously spawned middlewares from dispatching further actions when running the middleware again.
     /// - Parameter middleware: Middleware to modify
-    static func takeLatest<State>(_ middleware: @escaping Middleware<State>) -> Middleware<State> {
+    static func latestOnly<State>(_ middleware: @escaping Middleware<State>) -> Middleware<State> {
         var changeToken = 0
         
         return { state, action, dispatch in

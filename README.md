@@ -177,7 +177,7 @@ These apply a transformation on the provided middleware(s) to produce a new midd
 Middlewares.combine(middleware1, middleware2, ..., middlewareN) 
 // combines all middlewares into a single middleware
 
-Middlewares.takeLatest(middleware) 
+Middlewares.latestOnly(middleware) 
 // only dispatches actions from the latest running instance of the given middleware
 
 Middlewares.filter(predicate, middleware)
