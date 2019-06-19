@@ -1,6 +1,6 @@
 # SwiftState
 
-Redux-like unidirectional data flow built SwiftUI and Combine
+Redux-like unidirectional data flow built for SwiftUI and Combine
 
 ## Quick Start
 
