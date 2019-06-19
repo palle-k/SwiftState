@@ -119,7 +119,7 @@ struct YourView_Previews: PreviewProvider {
 ```
 
 This store is only used in the preview and therefore can be customized to provide a better preview experience in Xcode.
-It can for example be pre-populated with demo data. Additionally, by providing a custom reducer and actions, network calls or other long running middlewares can be avoided.
+It can for example be pre-populated with demo data. Additionally, by providing a custom reducer and middleware, behavior can be customized and network calls or other long running middlewares can be avoided.
 
 ### Middlewares
 
