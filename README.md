@@ -1,8 +1,22 @@
 # SwiftState
 
-Redux-like unidirectional data flow for SwiftUI and Combine
+Redux-like unidirectional data flow built SwiftUI and Combine
 
 ## Quick Start
+
+### Install
+
+Requires Swift 5.1 and iOS/iPadOS/tvOS 13, macOS 10.15 or watchOS 6
+
+#### Swift Package Manager
+
+Add the package as a dependency to the Package.swift file:
+
+```
+.package(url: "https://github.com/palle-k/SwiftState.git", branch: "master")
+```
+
+### Overview
 
 The state of the app is managed by a single `Store<State>` object.
 To modify the app state, an action must be dispatched against the store.
