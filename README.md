@@ -90,7 +90,7 @@ struct YourView: View {
     @EnvironmentObject let store: Store<AppState>  // automatically set by SwiftUI
     
     var body: some View {
-        // ...
+        Text(store.state.username)
     }
 }
 ```
