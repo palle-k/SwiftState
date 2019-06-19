@@ -90,7 +90,13 @@ struct YourView: View {
     @EnvironmentObject let store: Store<AppState>  // automatically set by SwiftUI
     
     var body: some View {
-        Text(store.state.username)
+        VStack {
+            Text(store.state.username ?? "not logged in")
+            Button(
+                action: {self.store.dispatch(AppAction.setUsername("John Appleseed"))}, 
+                label: {Text("Set Username")}
+            )
+        }
     }
 }
 ```
