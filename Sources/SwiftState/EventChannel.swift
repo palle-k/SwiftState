@@ -35,7 +35,9 @@ public class EventChannel<Event> {
         let queue = CoChannel<Event>(bufferType: .conflated)
         self.queue = queue
         self.cancel = subscribe { event in
-            try! queue.awaitSend(event)
+            Coroutine.start {
+                try queue.awaitSend(event)
+            }
         }
     }
     
