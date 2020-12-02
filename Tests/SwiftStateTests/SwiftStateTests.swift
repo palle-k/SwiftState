@@ -29,9 +29,11 @@ final class SwiftStateTests: XCTestCase {
         
         store.runSaga { yield in
             print("starting saga")
-            try yield(Effects.TakeEvery(CounterAction.self) { action, _ in
-                print("receive \(action)")
-            })
+            try yield(Effects.All([
+                Effects.TakeEvery(CounterAction.self) { action, _ in
+                    print("receive \(action)")
+                }.wrapped()
+            ]))
         }
         
         print("start dispatch")

@@ -24,7 +24,7 @@
 //  SOFTWARE.
 
 import Foundation
-
+import SwiftCoroutine
 
 public enum Effects {}
 
@@ -224,6 +224,39 @@ public extension Effects {
         }
     }
     
+    struct Throttle<ActionType: Action>: Effect {
+        public typealias Response = Void
+        
+        let saga: Saga<ActionType>
+        let interval: TimeInterval
+        
+        public init(_: ActionType.Type, interval: TimeInterval, _ saga: @escaping Saga<ActionType>) {
+            self.saga = saga
+            self.interval = interval
+        }
+        
+        public func perform(in environment: EffectEnvironment) -> Void {
+            let forkEffect = Effects.Fork { yield in
+                var idle = true
+                while true {
+                    let action = try yield(Take(ActionType.self))
+                    if !idle {
+                        continue
+                    }
+                    idle = false
+                    try yield(Effects.Fork { yield in
+                        try self.saga(action, yield)
+                    })
+                    try yield(Effects.Fork { yield in
+                        try yield(Sleep(self.interval))
+                        idle = true
+                    })
+                }
+            }
+            return forkEffect.perform(in: environment)
+        }
+    }
+    
     struct All: Effect {
         public typealias Response = Void
         
@@ -234,8 +267,22 @@ public extension Effects {
         }
         
         public func perform(in environment: EffectEnvironment) -> Void {
-            for effect in effects {
-                _ = effect.perform(in: environment)
+            try! Coroutine.await { completion in
+                var completedCount = 0
+                for effect in effects {
+                    startSaga(
+                        { yield in
+                            _ = effect.perform(in: environment)
+                        },
+                        in: environment,
+                        completion: {
+                            completedCount += 1
+                            if completedCount == effects.count {
+                                completion()
+                            }
+                        }
+                    )
+                }
             }
         }
     }

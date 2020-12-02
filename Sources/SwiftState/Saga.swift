@@ -81,7 +81,7 @@ public typealias VoidSaga = (_ yield: Yielder) throws -> Void
 public typealias Saga<Args> = (_ args: Args, _ yield: Yielder) throws -> Void
 
 @discardableResult
-func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment) -> SagaHandle {
+func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment, completion: (() -> Void)? = nil) -> SagaHandle {
     var cancelClosure = {}
     let scope = CoScope()
     environment.queue.startCoroutine(in: scope) {
@@ -98,6 +98,8 @@ func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment) ->
         while let _ = try! generator.next({ effect -> Any in
             effect.perform(in: environment)
         }) {}
+        
+        completion?()
     }
     
     return SagaHandle {
