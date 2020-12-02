@@ -1,6 +1,6 @@
 # SwiftState
 
-Redux-like unidirectional data flow built for SwiftUI and Combine
+Redux + Saga unidirectional data flow built for SwiftUI and Combine
 
 ## Quick Start
 
@@ -168,29 +168,24 @@ let store = Store<AppState>(
 
 ```
 
-#### Middleware Modifiers
+### Sagas
 
-A range of modifiers is provided by the `Middlewares` namespace.
-These apply a transformation on the provided middleware(s) to produce a new middleware.
+Sagas run asynchronous middleware in regular code through coroutines without the need to nest completion handlers.
 
 ```swift
-Middlewares.combine(middleware1, middleware2, ..., middlewareN) 
-// combines all middlewares into a single middleware
-
-Middlewares.latestOnly(middleware) 
-// only dispatches actions from the latest running instance of the given middleware
-
-Middlewares.filter(predicate, middleware)
-// Only runs the middleware when an action is dispatched, that matches the given predicate.
-
-Middlewares.throttle(interval: 1, middleware) 
-// All subsequent calls to the middleware that occur within the given interval after the first call to the middleware are ignored.
-// Should be combined with Middlewares.filter so the throttling is only applied to the relevant action.
-
-Middlewares.debounce(interval: 1, middleware)
-// Runs the middleware if no calls have been made to it within the given interval after the last call.
-// Should be combined with Middlewares.filter so the debouncing is only applied to the relevant action.
-
-Middlewares.delay(1, middleware)
-// Runs the middleware after the given delay.
+store.runSaga { _, yield in
+    try yield(Effects.TakeEvery(RegisterAction.self) { action, yield in
+        let state = try yield(Effects.Select(AppState.self))
+        let response = try yield(Effects.Call { completion in
+            performRegisterAPICall(state, action, completion: completion)
+        })
+        if let token = response.token {
+            try yield(Effects.Put(RegisterAction.success(token)))
+        } else {
+            try yield(Effects.Put(RegisterAction.usernameTaken))
+        }
+    }
+}
 ```
+
+Each saga is a generator function that yields effects.
