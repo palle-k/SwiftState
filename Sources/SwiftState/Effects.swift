@@ -144,7 +144,7 @@ public extension Effects {
             let forkEffect = Fork { yield in
                 while true {
                     let action = yield(Take(ActionType.self))
-                    try self.saga(action, yield)
+                    self.saga(action, yield)
                 }
             }
             return forkEffect.perform(in: environment)
@@ -168,7 +168,7 @@ public extension Effects {
                     
                     startSaga(
                         { yield in
-                            try self.saga(action, yield)
+                            self.saga(action, yield)
                         },
                         in: environment
                     )
@@ -195,7 +195,7 @@ public extension Effects {
                     currentHandle?.cancel()
                     currentHandle = startSaga(
                         { yield in
-                            try self.saga(action, yield)
+                            self.saga(action, yield)
                         },
                         in: environment
                     )
@@ -228,7 +228,7 @@ public extension Effects {
                         if token != currentToken {
                             return
                         }
-                        try self.saga(action, yield)
+                        self.saga(action, yield)
                     })
                 }
             }
@@ -257,7 +257,7 @@ public extension Effects {
                     }
                     idle = false
                     yield(Effects.Fork { yield in
-                        try self.saga(action, yield)
+                        self.saga(action, yield)
                     })
                     yield(Effects.Fork { yield in
                         yield(Sleep(self.interval))

@@ -77,8 +77,8 @@ public struct Yielder {
     }
 }
 
-public typealias VoidSaga = (_ yield: Yielder) throws -> Void
-public typealias Saga<Args> = (_ args: Args, _ yield: Yielder) throws -> Void
+public typealias VoidSaga = (_ yield: Yielder) -> Void
+public typealias Saga<Args> = (_ args: Args, _ yield: Yielder) -> Void
 
 @discardableResult
 func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment, completion: (() -> Void)? = nil) -> SagaHandle {
