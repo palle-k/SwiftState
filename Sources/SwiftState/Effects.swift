@@ -118,6 +118,18 @@ public extension Effects {
         }
     }
     
+    struct TakeEvent<Event>: Effect {
+        let channel: EventChannel<Event>
+        
+        public init(_ channel: EventChannel<Event>) {
+            self.channel = channel
+        }
+        
+        public func perform(in environment: EffectEnvironment) -> Event {
+            self.channel.next()
+        }
+    }
+    
     struct TakeLeading<ActionType: Action>: Effect {
         public typealias Response = Void
         

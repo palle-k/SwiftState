@@ -59,7 +59,6 @@ Middlewares can be used to dispatch additional actions following an initial acti
 Examples for this can be network calls that are triggered by an action and then asynchronously dispatch a completion or error. 
 
 ```swift
-
 enum RegisterAction {
     case register(username: String, password: String)
     case usernameTaken
