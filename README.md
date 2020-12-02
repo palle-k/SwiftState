@@ -106,15 +106,15 @@ Sagas run asynchronous middleware in regular code through coroutines without the
 
 ```swift
 store.runSaga { yield in
-    try yield(Effects.TakeEvery(RegisterAction.self) { action, yield in
-        let state = try yield(Effects.Select(AppState.self))
-        let response = try yield(Effects.Call { completion in
+    yield(Effects.TakeEvery(RegisterAction.self) { action, yield in
+        let state = yield(Effects.Select(AppState.self))
+        let response = yield(Effects.Call { completion in
             performRegisterAPICall(state, action, completion: completion)
         })
         if let token = response.token {
-            try yield(Effects.Put(RegisterAction.success(token)))
+            yield(Effects.Put(RegisterAction.success(token)))
         } else {
-            try yield(Effects.Put(RegisterAction.usernameTaken))
+            yield(Effects.Put(RegisterAction.usernameTaken))
         }
     }
 }

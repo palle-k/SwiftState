@@ -66,14 +66,14 @@ public struct AnyEffect: Effect {
 }
 
 public struct Yielder {
-    let yield: (AnyEffect) throws -> Any
+    let yield: (AnyEffect) -> Any
     
-    init(_ yield: @escaping (AnyEffect) throws -> Any) {
+    init(_ yield: @escaping (AnyEffect) -> Any) {
         self.yield = yield
     }
     
-    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response {
-        try self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
+    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) -> EffectType.Response {
+        self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
     }
 }
 

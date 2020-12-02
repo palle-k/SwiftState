@@ -131,7 +131,7 @@ public extension Effects {
         public func perform(in environment: EffectEnvironment) -> Void {
             let forkEffect = Fork { yield in
                 while true {
-                    let action = try yield(Take(ActionType.self))
+                    let action = yield(Take(ActionType.self))
                     try self.saga(action, yield)
                 }
             }
@@ -152,7 +152,7 @@ public extension Effects {
         public func perform(in environment: EffectEnvironment) -> Void {
             let forkEffect = Effects.Fork { yield in
                 while true {
-                    let action = try yield(Take(ActionType.self))
+                    let action = yield(Take(ActionType.self))
                     
                     startSaga(
                         { yield in
@@ -179,7 +179,7 @@ public extension Effects {
             let forkEffect = Effects.Fork { yield in
                 var currentHandle: SagaHandle? = nil
                 while true {
-                    let action = try yield(Take(ActionType.self))
+                    let action = yield(Take(ActionType.self))
                     currentHandle?.cancel()
                     currentHandle = startSaga(
                         { yield in
@@ -208,11 +208,11 @@ public extension Effects {
             let forkEffect = Effects.Fork { yield in
                 var token: Int = 0
                 while true {
-                    let action = try yield(Take(ActionType.self))
+                    let action = yield(Take(ActionType.self))
                     token += 1
                     let currentToken = token
-                    try yield(Effects.Fork { yield in
-                        try yield(Sleep(self.interval))
+                    yield(Effects.Fork { yield in
+                        yield(Sleep(self.interval))
                         if token != currentToken {
                             return
                         }
@@ -239,16 +239,16 @@ public extension Effects {
             let forkEffect = Effects.Fork { yield in
                 var idle = true
                 while true {
-                    let action = try yield(Take(ActionType.self))
+                    let action = yield(Take(ActionType.self))
                     if !idle {
                         continue
                     }
                     idle = false
-                    try yield(Effects.Fork { yield in
+                    yield(Effects.Fork { yield in
                         try self.saga(action, yield)
                     })
-                    try yield(Effects.Fork { yield in
-                        try yield(Sleep(self.interval))
+                    yield(Effects.Fork { yield in
+                        yield(Sleep(self.interval))
                         idle = true
                     })
                 }
