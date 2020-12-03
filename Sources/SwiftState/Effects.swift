@@ -42,6 +42,14 @@ public extension Effects {
             (environment.state() as! State)[keyPath: keyPath]
         }
     }
+    
+    static func select<State>(_ type: State.Type = State.self) -> Effects.Select<State, State> {
+        Effects.Select(\State.self)
+    }
+    
+    static func select<State, SubState>(_ path: KeyPath<State, SubState>) -> Effects.Select<State, SubState> {
+        Effects.Select(path)
+    }
 }
 
 public extension Effects.Select where State == Substate {
@@ -72,6 +80,10 @@ public extension Effects {
             environment.dispatch(action)
         }
     }
+    
+    static func put(_ action: Action) -> Effects.Put {
+        Effects.Put(action: action)
+    }
 }
 
 public extension Yielder {
@@ -91,6 +103,10 @@ public extension Effects {
         public func perform(in environment: EffectEnvironment) throws -> Output {
             try Coroutine.await(self.execute)
         }
+    }
+    
+    static func call<Output>(_ execute: @escaping (_ completion: @escaping (Output) -> Void) -> Void) -> Effects.Call<Output> {
+        Effects.Call(execute)
     }
 }
 
@@ -117,6 +133,10 @@ public extension Effects {
             }
         }
     }
+    
+    static func sleep(_ interval: TimeInterval) -> Effects.Sleep {
+        Effects.Sleep(interval)
+    }
 }
 
 public extension Yielder {
@@ -141,6 +161,10 @@ public extension Effects {
             environment.queue = self.queue ?? environment.queue
             return startSaga(self.saga, in: environment)
         }
+    }
+    
+    static func fork(_ perform: @escaping VoidSaga) -> Effects.Fork {
+        Effects.Fork(perform)
     }
 }
 
@@ -173,6 +197,10 @@ public extension Effects {
             }
         }
     }
+    
+    static func take<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) -> Effects.Take<ActionType> {
+        Effects.Take(ActionType.self, predicate: predicate)
+    }
 }
 
 fileprivate extension Effects {
@@ -190,27 +218,30 @@ fileprivate extension Effects {
             return mapping(result)
         }
     }
+    
+    static func take<ActionType: Action>(timeout: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) -> Effects.First<GenericEffect<ActionType?>> {
+        Effects.First<GenericEffect<ActionType?>>([
+            Effects.MapEffect<Effects.Take<ActionType>, ActionType?>(
+                Effects.Take(ActionType.self, predicate: predicate),
+                { res -> ActionType? in
+                    res
+                }
+            ).generic(),
+            Effects.MapEffect<Effects.Sleep, ActionType?>(
+                Effects.Sleep(timeout),
+                {_ in nil}
+            ).generic()
+        ])
+    }
 }
 
 public extension Yielder {
     func take<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType {
-        try self(Effects.Take(ActionType.self, predicate: predicate))
+        try self(Effects.take(ActionType.self, predicate: predicate))
     }
     
     func take<ActionType: Action>(timeout: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType? {
-        var result: ActionType?
-        
-        try self.first(
-            Effects.MapEffect<Effects.Take<ActionType>, Void>(
-                Effects.Take(ActionType.self, predicate: predicate),
-                { res in
-                    result = res
-                }
-            ),
-            Effects.Sleep(timeout)
-        )
-        
-        return result
+        return try self(Effects.take(timeout: timeout, ActionType.self, predicate: predicate).generic())
     }
 }
 
@@ -225,6 +256,10 @@ public extension Effects {
         public func perform(in environment: EffectEnvironment) -> Event {
             self.channel.next()
         }
+    }
+    
+    static func take<Event>(_ channel: EventChannel<Event>) -> TakeEvent<Event> {
+        Effects.TakeEvent(channel)
     }
 }
 
@@ -255,11 +290,15 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
+    
+    static func takeLeading<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) -> Effects.TakeLeading<ActionType> {
+        Effects.TakeLeading(ActionType.self, predicate: predicate, saga: saga)
+    }
 }
 
 public extension Yielder {
     func takeLeading<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
-        try self(Effects.TakeLeading(ActionType.self, predicate: predicate, saga: saga))
+        try self(Effects.takeLeading(ActionType.self, predicate: predicate, saga: saga))
     }
 }
 
@@ -289,11 +328,15 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
+    
+    static func takeEvery<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) -> Effects.TakeEvery<ActionType> {
+        Effects.TakeEvery(ActionType.self, predicate: predicate, saga: saga)
+    }
 }
 
 public extension Yielder {
     func takeEvery<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
-        try self(Effects.TakeEvery(ActionType.self, predicate: predicate, saga: saga))
+        try self(Effects.takeEvery(ActionType.self, predicate: predicate, saga: saga))
     }
 }
 
@@ -324,11 +367,15 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
+    
+    static func takeLatest<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) -> Effects.TakeLatest<ActionType> {
+        Effects.TakeLatest(ActionType.self, predicate: predicate, saga: saga)
+    }
 }
 
 public extension Yielder {
     func takeLatest<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
-        try self(Effects.TakeLatest(ActionType.self, predicate: predicate, saga: saga))
+        try self(Effects.takeLatest(ActionType.self, predicate: predicate, saga: saga))
     }
 }
 
@@ -363,11 +410,15 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
+    
+    static func debounce<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) -> Effects.Debounce<ActionType> {
+        Effects.Debounce(interval: interval, ActionType.self, predicate: predicate, saga: saga)
+    }
 }
 
 public extension Yielder {
     func debounce<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
-        try self(Effects.Debounce(interval: interval, ActionType.self, predicate: predicate, saga: saga))
+        try self(Effects.debounce(interval: interval, ActionType.self, predicate: predicate, saga: saga))
     }
 }
 
@@ -404,11 +455,15 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
+    
+    static func throttle<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) -> Effects.Throttle<ActionType> {
+        Effects.Throttle(interval: interval, ActionType.self, predicate: predicate, saga: saga)
+    }
 }
 
 public extension Yielder {
     func throttle<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
-        try self(Effects.Throttle(interval: interval, ActionType.self, predicate: predicate, saga: saga))
+        try self(Effects.throttle(interval: interval, ActionType.self, predicate: predicate, saga: saga))
     }
 }
 
@@ -445,11 +500,27 @@ public extension Effects {
             }
         }
     }
+    
+    static func all<BaseEffect: Effect>(_ effects: [BaseEffect]) -> Effects.All<BaseEffect> {
+        Effects.All(effects)
+    }
+    
+    static func all<BaseEffect: Effect>(_ effects: BaseEffect...) -> Effects.All<BaseEffect> {
+        self.all(effects)
+    }
+    
+    static func all(_ effects: [AnyEffectConvertible]) -> Effects.All<AnyEffect> {
+        Effects.All(effects.map {$0.wrapped()})
+    }
+    
+    static func all(_ effects: AnyEffectConvertible...) -> Effects.All<AnyEffect> {
+        self.all(effects)
+    }
 }
 
 public extension Yielder {
     func all<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> [BaseEffect.Response] {
-        try self(Effects.All(effects))
+        try self(Effects.all(effects))
     }
     
     func all<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> [BaseEffect.Response] {
@@ -458,7 +529,7 @@ public extension Yielder {
     
     @discardableResult
     func all(_ effects: [AnyEffectConvertible]) throws -> [Any] {
-        try self.all(effects.map {$0.wrapped()})
+        try self.all(effects.map {$0.wrapped()} as [AnyEffect])
     }
     
     @discardableResult
@@ -493,11 +564,27 @@ public extension Effects {
             }
         }
     }
+    
+    static func first<BaseEffect: Effect>(_ effects: [BaseEffect]) -> Effects.First<BaseEffect> {
+        Effects.First(effects)
+    }
+    
+    static func first<BaseEffect: Effect>(_ effects: BaseEffect...) -> Effects.First<BaseEffect> {
+        self.first(effects)
+    }
+    
+    static func first(_ effects: [AnyEffectConvertible]) -> Effects.First<AnyEffect> {
+        Effects.First(effects.map {$0.wrapped()})
+    }
+    
+    static func first(_ effects: AnyEffectConvertible...) -> Effects.First<AnyEffect> {
+        self.first(effects)
+    }
 }
 
 public extension Yielder {
     func first<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> BaseEffect.Response {
-        try self(Effects.First(effects))
+        try self(Effects.first(effects))
     }
     
     func first<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> BaseEffect.Response {

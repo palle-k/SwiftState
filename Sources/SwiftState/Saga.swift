@@ -51,6 +51,10 @@ public extension Effect {
     func wrapped() -> AnyEffect {
         AnyEffect(wrapping: self)
     }
+    
+    func generic() -> GenericEffect<Response> {
+        GenericEffect(wrapping: self)
+    }
 }
 
 public struct AnyEffect: Effect {
@@ -69,6 +73,20 @@ public struct AnyEffect: Effect {
     }
 }
 
+public struct GenericEffect<Response>: Effect {
+    let performClosure: (EffectEnvironment) throws -> Response
+    
+    public init<WrappedEffect: Effect>(wrapping wrappedEffect: WrappedEffect) where WrappedEffect.Response == Response {
+        self.performClosure = { environment in
+            try wrappedEffect.perform(in: environment)
+        }
+    }
+    
+    public func perform(in environment: EffectEnvironment) throws -> Response {
+        try performClosure(environment)
+    }
+}
+
 public struct Yielder {
     let yield: (AnyEffect) throws -> Any
     
@@ -76,12 +94,8 @@ public struct Yielder {
         self.yield = yield
     }
     
-    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response {
-        try self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
-    }
-    
     @discardableResult
-    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response where EffectType.Response == SagaHandle {
+    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response {
         try self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
     }
 }

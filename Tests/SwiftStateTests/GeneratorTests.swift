@@ -7,7 +7,7 @@
 
 import Foundation
 import XCTest
-@testable import SwiftState
+import SwiftState
 
 class GeneratorTests: XCTestCase {
     func testGenerator() {

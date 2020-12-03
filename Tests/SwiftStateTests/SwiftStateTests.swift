@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwiftState
+import SwiftState
 
 struct Counter: Hashable {
     var count: Int
@@ -29,14 +29,30 @@ final class SwiftStateTests: XCTestCase {
         
         store.runSaga { yield in
             try yield.all(
-                Effects.TakeEvery(CounterAction.self, predicate: {$0 == .reset}) { action, yield in
+                Effects.takeEvery(predicate: {$0 == CounterAction.reset}) { action, yield in
                     try print("resetting counter from \(yield.select(\Counter.count))")
+                },
+                Effects.fork { yield in
+                    try yield.all(
+                        Effects.take {$0 == CounterAction.increment},
+                        Effects.take {$0 == CounterAction.reset}
+                    )
+                    print("one increment and one reset have been dispatched")
+                },
+                Effects.fork { yield in
+                    _ = try yield.take {$0 == CounterAction.reset}
+                    _ = try yield.take {$0 == CounterAction.reset}
+                    _ = try yield.take {$0 == CounterAction.reset}
+                    print("counter has been reset 3 times")
                 }
             )
         }
         
-        print("start dispatch")
+        print("dispatch reset")
+        store.dispatch(CounterAction.reset)
+        print("dispatch increment")
         store.dispatch(CounterAction.increment)
+        print("increment+reset dispatched")
         store.dispatch(CounterAction.increment)
         store.dispatch(CounterAction.increment)
         store.dispatch(CounterAction.reset)
