@@ -9,19 +9,23 @@ import Foundation
 import XCTest
 @testable import SwiftState
 
-
 class GeneratorTests: XCTestCase {
     func testGenerator() {
-        let resendPlusOne = Generator<Int, Int> { yield in
-            for i in 0... {
-                print(yield(i))
+        let generator = Generator<Void, Void> { (yield: @escaping (()) throws -> ()) in
+            while true {
+                print("yielding... (main thread? \(Thread.current.isMainThread))")
+                try yield(())
             }
         }
         
-        resendPlusOne.run(on: DispatchQueue.main)
+        generator.run(on: DispatchQueue.main)
         
         for _ in 0 ..< 10 {
-            try! resendPlusOne.next {$0 + 1}
+            print("sending... (main thread? \(Thread.current.isMainThread))")
+            generator.next()
         }
+        
+        generator.cancel()
+        print("done outside coroutine")
     }
 }

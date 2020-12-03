@@ -40,7 +40,7 @@ public class Generator<Element, Input> {
     }
     
     private var state = State.idle
-    private let execute: (_ yield: @escaping (Element) -> Input) throws -> Void
+    private let execute: (_ yield: @escaping (Element) throws -> Input) throws -> Void
     private let scope: CoScope
     
     let outputChannel: CoChannel<Event>
@@ -52,16 +52,16 @@ public class Generator<Element, Input> {
         }
     }
     
-    public init(_ execute: @escaping (_ yield: @escaping (Element) -> Input) throws -> Void) {
+    public init(_ execute: @escaping (_ yield: @escaping (Element) throws -> Input) throws -> Void) {
         self.inputChannel = CoChannel(bufferType: .unlimited)
         self.outputChannel = CoChannel(bufferType: .none)
         self.execute = execute
         self.scope = CoScope()
     }
     
-    private func yield(_ element: Element) -> Input {
-        try! outputChannel.awaitSend(.next(element))
-        return try! inputChannel.awaitReceive()
+    private func yield(_ element: Element) throws -> Input {
+        try outputChannel.awaitSend(.next(element))
+        return try inputChannel.awaitReceive()
     }
     
     public func run(on queue: CoroutineScheduler) {
@@ -82,25 +82,35 @@ public class Generator<Element, Input> {
     }
     
     public func next(_ input: Input) throws -> Element? {
-        try next {_ in input}
+        next {_ in input}
     }
     
     @discardableResult
-    public func next(_ mapping: (Element) -> Input) throws -> Element? {
+    public func next(_ mapping: (Element) throws -> Input) -> Element? {
         assert(state != .idle)
         if state == .completed {
             return nil
         }
-        let result = try! outputChannel.awaitReceive()
+        let result = try? outputChannel.awaitReceive()
         switch result {
+        case .none:
+            self.inputChannel.close()
+            self.outputChannel.close()
+            self.state = .completed
+            return nil
         case .next(let element):
-            try! inputChannel.awaitSend(mapping(element))
+            try? inputChannel.awaitSend(mapping(element))
             return element
         case .complete(.some(let error)):
             self.state = .completed
             inputChannel.close()
             outputChannel.close()
-            throw error
+            switch error {
+            case CoroutineError.canceled, CoChannelError.canceled, CoChannelError.closed, CoFutureError.canceled:
+                return nil
+            default:
+                fatalError("unhandled error in coroutine: \(error)")
+            }
         case .complete(.none):
             inputChannel.close()
             outputChannel.close()
@@ -112,7 +122,7 @@ public class Generator<Element, Input> {
 
 extension Generator: IteratorProtocol, Sequence where Input == Void {
     public func next() -> Element? {
-        try! next(())
+        try? next(())
     }
     
     public func makeIterator() -> Self {
@@ -121,10 +131,10 @@ extension Generator: IteratorProtocol, Sequence where Input == Void {
 }
 
 public extension Generator where Element == Void {
-    convenience init(_ execute: @escaping (_ yield: () -> Input) throws -> Void) {
+    convenience init(_ execute: @escaping (_ yield: () throws -> Input) throws -> Void) {
         self.init({ yield in
             try execute {
-                yield(())
+                try yield(())
             }
         })
     }

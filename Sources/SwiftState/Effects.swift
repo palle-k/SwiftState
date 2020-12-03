@@ -42,9 +42,26 @@ public extension Effects {
             (environment.state() as! State)[keyPath: keyPath]
         }
     }
+}
+
+public extension Effects.Select where State == Substate {
+    init(_: State.Type = State.self) {
+        self.init(\.self)
+    }
+}
+
+public extension Yielder {
+    func select<State>(_ type: State.Type = State.self) throws -> State {
+        try self(Effects.Select(\State.self))
+    }
     
+    func select<State, SubState>(_ path: KeyPath<State, SubState>) throws -> SubState {
+        try self(Effects.Select(path))
+    }
+}
+
+public extension Effects {
     struct Put: Effect {
-        public typealias Response = Void
         let action: Action
         
         public init(action: Action) {
@@ -55,32 +72,44 @@ public extension Effects {
             environment.dispatch(action)
         }
     }
-    
+}
+
+public extension Yielder {
+    func put(_ action: Action) throws {
+        try self(Effects.Put(action: action))
+    }
+}
+
+public extension Effects {
     struct Call<Output>: Effect {
-        public typealias Response = Output
-        
         let execute: (_ completion: @escaping (Output) -> Void) -> Void
         
         public init(_ execute: @escaping (_ completion: @escaping (Output) -> Void) -> Void) {
             self.execute = execute
         }
         
-        public func perform(in environment: EffectEnvironment) -> Output {
-            (try! Coroutine.await(self.execute))
+        public func perform(in environment: EffectEnvironment) throws -> Output {
+            try Coroutine.await(self.execute)
         }
     }
-    
+}
+
+public extension Yielder {
+    func call<Output>(_ execute: @escaping (_ completion: @escaping (Output) -> Void) -> Void) throws -> Output {
+        try self(Effects.Call(execute))
+    }
+}
+
+public extension Effects {
     struct Sleep: Effect {
-        public typealias Response = Void
-        
         let interval: TimeInterval
         
         public init(_ interval: TimeInterval) {
             self.interval = interval
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
-            try! Coroutine.await { completion in
+        public func perform(in environment: EffectEnvironment) throws -> Void {
+            try Coroutine.await { completion in
                 environment.queue.asyncAfter(
                     deadline: .now() + .nanoseconds(Int(self.interval * TimeInterval(NSEC_PER_SEC))),
                     execute: completion
@@ -88,36 +117,104 @@ public extension Effects {
             }
         }
     }
-    
+}
+
+public extension Yielder {
+    func sleep(_ interval: TimeInterval) throws {
+        try self(Effects.Sleep(interval))
+    }
+}
+
+public extension Effects {
     struct Fork: Effect {
-        public typealias Response = Void
-        
         let saga: VoidSaga
+        let queue: DispatchQueue?
         
-        public init(_ saga: @escaping VoidSaga) {
+        public init(_ saga: @escaping VoidSaga, on queue: DispatchQueue? = nil) {
             self.saga = saga
+            self.queue = queue
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
-            startSaga(self.saga, in: environment)
+        @discardableResult
+        public func perform(in environment: EffectEnvironment) -> SagaHandle {
+            var environment = environment
+            environment.queue = self.queue ?? environment.queue
+            return startSaga(self.saga, in: environment)
+        }
+    }
+}
+
+public extension Yielder {
+    func fork<Input>(_ input: Input, _ perform: @escaping Saga<Input>) throws -> SagaHandle {
+        try self.fork { yield in
+            try perform(input, yield)
         }
     }
     
+    func fork(_ perform: @escaping VoidSaga) throws -> SagaHandle {
+        try self(Effects.Fork(perform))
+    }
+}
+
+public extension Effects {
     struct Take<ActionType: Action>: Effect {
-        public typealias Response = ActionType
+        let predicate: (ActionType) -> Bool
         
-        public init(_: ActionType.Type) {}
+        public init(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) {
+            self.predicate = predicate
+        }
         
-        public func perform(in environment: EffectEnvironment) -> ActionType {
+        public func perform(in environment: EffectEnvironment) throws -> ActionType {
             let actionChannel = environment.actions()
             while true {
-                if let action = try! actionChannel.awaitReceive() as? ActionType {
+                if let action = try actionChannel.awaitReceive() as? ActionType, predicate(action) {
                     return action
                 }
             }
         }
     }
+}
+
+fileprivate extension Effects {
+    struct MapEffect<Source: Effect, Output>: Effect {
+        let effect: Source
+        let mapping: (Source.Response) -> Output
+        
+        init(_ effect: Source, _ transform: @escaping (Source.Response) -> Output) {
+            self.effect = effect
+            self.mapping = transform
+        }
+        
+        func perform(in environment: EffectEnvironment) throws -> Output {
+            let result = try self.effect.perform(in: environment)
+            return mapping(result)
+        }
+    }
+}
+
+public extension Yielder {
+    func take<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType {
+        try self(Effects.Take(ActionType.self, predicate: predicate))
+    }
     
+    func take<ActionType: Action>(timeout: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType? {
+        var result: ActionType?
+        
+        try self.first(
+            Effects.MapEffect<Effects.Take<ActionType>, Void>(
+                Effects.Take(ActionType.self, predicate: predicate),
+                { res in
+                    result = res
+                }
+            ),
+            Effects.Sleep(timeout)
+        )
+        
+        return result
+    }
+}
+
+public extension Effects {
     struct TakeEvent<Event>: Effect {
         let channel: EventChannel<Event>
         
@@ -129,46 +226,61 @@ public extension Effects {
             self.channel.next()
         }
     }
-    
+}
+
+public extension Yielder {
+    func take<Event>(_ channel: EventChannel<Event>) throws -> Event {
+        try self(Effects.TakeEvent(channel))
+    }
+}
+
+public extension Effects {
     struct TakeLeading<ActionType: Action>: Effect {
-        public typealias Response = Void
-        
         let saga: Saga<ActionType>
+        let predicate: (ActionType) -> Bool
         
         
-        public init(_: ActionType.Type, _ saga: @escaping Saga<ActionType>) {
+        public init(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) {
             self.saga = saga
+            self.predicate = predicate
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
+        public func perform(in environment: EffectEnvironment) throws -> SagaHandle {
             let forkEffect = Fork { yield in
                 while true {
-                    let action = yield(Take(ActionType.self))
-                    self.saga(action, yield)
+                    let action = try yield.take(ActionType.self, predicate: self.predicate)
+                    try self.saga(action, yield)
                 }
             }
             return forkEffect.perform(in: environment)
         }
     }
-    
+}
+
+public extension Yielder {
+    func takeLeading<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
+        try self(Effects.TakeLeading(ActionType.self, predicate: predicate, saga: saga))
+    }
+}
+
+public extension Effects {
     struct TakeEvery<ActionType: Action>: Effect {
-        public typealias Response = Void
-        
         let saga: Saga<ActionType>
+        let predicate: (ActionType) -> Bool
         
-        
-        public init(_: ActionType.Type, _ saga: @escaping Saga<ActionType>) {
+        public init(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) {
             self.saga = saga
+            self.predicate = predicate
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
+        public func perform(in environment: EffectEnvironment) throws -> SagaHandle {
             let forkEffect = Effects.Fork { yield in
                 while true {
-                    let action = yield(Take(ActionType.self))
+                    let action = try yield(Take(ActionType.self, predicate: self.predicate))
                     
                     startSaga(
                         { yield in
-                            self.saga(action, yield)
+                            try self.saga(action, yield)
                         },
                         in: environment
                     )
@@ -177,25 +289,33 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
-    
+}
+
+public extension Yielder {
+    func takeEvery<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
+        try self(Effects.TakeEvery(ActionType.self, predicate: predicate, saga: saga))
+    }
+}
+
+public extension Effects {
     struct TakeLatest<ActionType: Action>: Effect {
-        public typealias Response = Void
-        
         let saga: Saga<ActionType>
+        let predicate: (ActionType) -> Bool
         
-        public init(_: ActionType.Type, _ saga: @escaping Saga<ActionType>) {
+        public init(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) {
             self.saga = saga
+            self.predicate = predicate
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
+        public func perform(in environment: EffectEnvironment) throws -> SagaHandle {
             let forkEffect = Effects.Fork { yield in
                 var currentHandle: SagaHandle? = nil
                 while true {
-                    let action = yield(Take(ActionType.self))
+                    let action = try yield(Take(ActionType.self, predicate: self.predicate))
                     currentHandle?.cancel()
                     currentHandle = startSaga(
                         { yield in
-                            self.saga(action, yield)
+                            try self.saga(action, yield)
                         },
                         in: environment
                     )
@@ -204,63 +324,79 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
-    
+}
+
+public extension Yielder {
+    func takeLatest<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
+        try self(Effects.TakeLatest(ActionType.self, predicate: predicate, saga: saga))
+    }
+}
+
+public extension Effects {
     struct Debounce<ActionType: Action>: Effect {
-        public typealias Response = Void
-        
         let saga: Saga<ActionType>
         let interval: TimeInterval
+        let predicate: (ActionType) -> Bool
         
-        public init(_: ActionType.Type, interval: TimeInterval, _ saga: @escaping Saga<ActionType>) {
+        public init(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) {
             self.saga = saga
             self.interval = interval
+            self.predicate = predicate
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
+        public func perform(in environment: EffectEnvironment) throws -> SagaHandle {
             let forkEffect = Effects.Fork { yield in
                 var token: Int = 0
                 while true {
-                    let action = yield(Take(ActionType.self))
+                    let action = try yield(Take(ActionType.self, predicate: predicate))
                     token += 1
                     let currentToken = token
-                    yield(Effects.Fork { yield in
-                        yield(Sleep(self.interval))
+                    try yield(Effects.Fork { yield in
+                        try yield(Sleep(self.interval))
                         if token != currentToken {
                             return
                         }
-                        self.saga(action, yield)
+                        try self.saga(action, yield)
                     })
                 }
             }
             return forkEffect.perform(in: environment)
         }
     }
-    
+}
+
+public extension Yielder {
+    func debounce<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
+        try self(Effects.Debounce(interval: interval, ActionType.self, predicate: predicate, saga: saga))
+    }
+}
+
+public extension Effects {
     struct Throttle<ActionType: Action>: Effect {
-        public typealias Response = Void
-        
         let saga: Saga<ActionType>
         let interval: TimeInterval
+        let predicate: (ActionType) -> Bool
         
-        public init(_: ActionType.Type, interval: TimeInterval, _ saga: @escaping Saga<ActionType>) {
+        public init(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) {
             self.saga = saga
             self.interval = interval
+            self.predicate = predicate
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
+        public func perform(in environment: EffectEnvironment) -> SagaHandle {
             let forkEffect = Effects.Fork { yield in
                 var idle = true
                 while true {
-                    let action = yield(Take(ActionType.self))
+                    let action = try yield(Take(ActionType.self, predicate: predicate))
                     if !idle {
                         continue
                     }
                     idle = false
-                    yield(Effects.Fork { yield in
-                        self.saga(action, yield)
+                    try yield(Effects.Fork { yield in
+                        try self.saga(action, yield)
                     })
-                    yield(Effects.Fork { yield in
-                        yield(Sleep(self.interval))
+                    try yield(Effects.Fork { yield in
+                        try yield(Sleep(self.interval))
                         idle = true
                     })
                 }
@@ -268,31 +404,42 @@ public extension Effects {
             return forkEffect.perform(in: environment)
         }
     }
-    
-    struct All: Effect {
-        public typealias Response = Void
+}
+
+public extension Yielder {
+    func throttle<ActionType: Action>(interval: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
+        try self(Effects.Throttle(interval: interval, ActionType.self, predicate: predicate, saga: saga))
+    }
+}
+
+public extension Effects {
+    struct All<BaseEffect: Effect>: Effect {
+        let effects: [BaseEffect]
         
-        let effects: [AnyEffect]
-        
-        public init(_ effects: [AnyEffect]) {
+        public init(_ effects: [BaseEffect]) {
             self.effects = effects
         }
         
-        public func perform(in environment: EffectEnvironment) -> Void {
-            try! Coroutine.await { completion in
+        public func perform(in environment: EffectEnvironment) throws -> [BaseEffect.Response] {
+            try Coroutine.await { completion in
+                var results = Array(repeating: BaseEffect.Response?.none, count: self.effects.count)
                 var completedCount = 0
-                for effect in effects {
+                
+                if effects.count == 0 {
+                    return completion([])
+                }
+                
+                for (idx, effect) in effects.enumerated() {
                     startSaga(
                         { yield in
-                            _ = effect.perform(in: environment)
-                        },
-                        in: environment,
-                        completion: {
+                            let result = try yield(effect)
+                            results[idx] = result
                             completedCount += 1
                             if completedCount == effects.count {
-                                completion()
+                                completion(results.compactMap {$0})
                             }
-                        }
+                        },
+                        in: environment
                     )
                 }
             }
@@ -300,12 +447,66 @@ public extension Effects {
     }
 }
 
-public extension Effects.Select where State == Substate {
-    init() {
-        self.init(\.self)
+public extension Yielder {
+    func all<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> [BaseEffect.Response] {
+        try self(Effects.All(effects))
     }
     
-    init(_: State.Type) {
-        self.init(\.self)
+    func all<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> [BaseEffect.Response] {
+        try self.all(effects)
+    }
+    
+    func all(_ effects: [AnyEffectConvertible]) throws {
+        _ = try self.all(effects.map {$0.wrapped()})
+    }
+    
+    func all(_ effects: AnyEffectConvertible...) throws {
+        try all(effects)
+    }
+}
+
+public extension Effects {
+    struct First<BaseEffect: Effect>: Effect {
+        let effects: [BaseEffect]
+        
+        public init(_ effects: [BaseEffect]) {
+            self.effects = effects
+        }
+        
+        public func perform(in environment: EffectEnvironment) throws -> BaseEffect.Response {
+            try Coroutine.await { completion in
+                var handles: [SagaHandle] = []
+                handles.reserveCapacity(self.effects.count)
+                
+                for effect in self.effects {
+                    let handle = startSaga({ yield in
+                        let result = try yield(effect)
+                        completion(result)
+                        handles.forEach { handle in
+                            handle.cancel()
+                        }
+                    }, in: environment)
+                    handles.append(handle)
+                }
+            }
+        }
+    }
+}
+
+public extension Yielder {
+    func first<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> BaseEffect.Response {
+        try self(Effects.First(effects))
+    }
+    
+    func first<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> BaseEffect.Response {
+        try self.first(effects)
+    }
+    
+    func first(_ effects: [AnyEffectConvertible]) throws {
+        _ = try self(Effects.First(effects.map {$0.wrapped()}))
+    }
+    
+    func first(_ effects: AnyEffectConvertible...) throws {
+        try self.first(effects)
     }
 }

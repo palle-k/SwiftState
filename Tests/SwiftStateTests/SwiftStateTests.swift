@@ -28,12 +28,11 @@ final class SwiftStateTests: XCTestCase {
         let store = Store(initialState: Counter(count: 0), rootReducer: rootReducer(state:action:))
         
         store.runSaga { yield in
-            print("starting saga")
-            yield(Effects.All([
-                Effects.TakeEvery(CounterAction.self) { action, _ in
-                    print("receive \(action)")
-                }.wrapped()
-            ]))
+            try yield.all(
+                Effects.TakeEvery(CounterAction.self, predicate: {$0 == .reset}) { action, yield in
+                    try print("resetting counter from \(yield.select(\Counter.count))")
+                }
+            )
         }
         
         print("start dispatch")

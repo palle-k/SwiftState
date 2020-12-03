@@ -26,21 +26,25 @@
 import Foundation
 import SwiftCoroutine
 
-struct SagaHandle {
+public struct SagaHandle {
     let cancel: () -> Void
 }
 
 public struct EffectEnvironment {
-    let queue: DispatchQueue
+    var queue: DispatchQueue
     let state: () -> Any
     let actions: () -> CoChannel<Action>
     let dispatch: (Action) -> Void
 }
 
-public protocol Effect {
+public protocol AnyEffectConvertible {
+    func wrapped() -> AnyEffect
+}
+
+public protocol Effect: AnyEffectConvertible {
     associatedtype Response
     
-    func perform(in environment: EffectEnvironment) -> Response
+    func perform(in environment: EffectEnvironment) throws -> Response
 }
 
 public extension Effect {
@@ -52,33 +56,38 @@ public extension Effect {
 public struct AnyEffect: Effect {
     public typealias Response = Any
     
-    let performClosure: (EffectEnvironment) -> Any
+    let performClosure: (EffectEnvironment) throws -> Any
     
     public init<WrappedEffect: Effect>(wrapping wrappedEffect: WrappedEffect) {
         self.performClosure = { environment in
-            wrappedEffect.perform(in: environment)
+            try wrappedEffect.perform(in: environment)
         }
     }
     
-    public func perform(in environment: EffectEnvironment) -> Any {
-        performClosure(environment)
+    public func perform(in environment: EffectEnvironment) throws -> Any {
+        try performClosure(environment)
     }
 }
 
 public struct Yielder {
-    let yield: (AnyEffect) -> Any
+    let yield: (AnyEffect) throws -> Any
     
-    init(_ yield: @escaping (AnyEffect) -> Any) {
+    init(_ yield: @escaping (AnyEffect) throws -> Any) {
         self.yield = yield
     }
     
-    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) -> EffectType.Response {
-        self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
+    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response {
+        try self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
+    }
+    
+    @discardableResult
+    public func callAsFunction<EffectType: Effect>(_ effect: EffectType) throws -> EffectType.Response where EffectType.Response == SagaHandle {
+        try self.yield(AnyEffect(wrapping: effect)) as! EffectType.Response
     }
 }
 
-public typealias VoidSaga = (_ yield: Yielder) -> Void
-public typealias Saga<Args> = (_ args: Args, _ yield: Yielder) -> Void
+public typealias VoidSaga = (_ yield: Yielder) throws -> Void
+public typealias Saga<Args> = (_ args: Args, _ yield: Yielder) throws -> Void
 
 @discardableResult
 func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment, completion: (() -> Void)? = nil) -> SagaHandle {
@@ -95,8 +104,8 @@ func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment, co
             generator.cancel()
         }
         
-        while let _ = try! generator.next({ effect -> Any in
-            effect.perform(in: environment)
+        while let _ = generator.next({ effect -> Any in
+            try effect.perform(in: environment)
         }) {}
         
         completion?()
@@ -116,7 +125,7 @@ public extension Store {
             actions: {
                 let channel = CoChannel<Action>(bufferType: .conflated)
                 self.addMiddleware { _, action, _ in
-                    try! channel.awaitSend(action)
+                    try? channel.awaitSend(action)
                 }
                 return channel
             },
