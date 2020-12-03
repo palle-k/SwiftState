@@ -456,11 +456,13 @@ public extension Yielder {
         try self.all(effects)
     }
     
-    func all(_ effects: [AnyEffectConvertible]) throws {
-        _ = try self.all(effects.map {$0.wrapped()})
+    @discardableResult
+    func all(_ effects: [AnyEffectConvertible]) throws -> [Any] {
+        try self.all(effects.map {$0.wrapped()})
     }
     
-    func all(_ effects: AnyEffectConvertible...) throws {
+    @discardableResult
+    func all(_ effects: AnyEffectConvertible...) throws -> [Any] {
         try all(effects)
     }
 }
@@ -502,11 +504,13 @@ public extension Yielder {
         try self.first(effects)
     }
     
-    func first(_ effects: [AnyEffectConvertible]) throws {
-        _ = try self(Effects.First(effects.map {$0.wrapped()}))
+    @discardableResult
+    func first(_ effects: [AnyEffectConvertible]) throws -> Any {
+        try self(Effects.First(effects.map {$0.wrapped()}))
     }
     
-    func first(_ effects: AnyEffectConvertible...) throws {
+    @discardableResult
+    func first(_ effects: AnyEffectConvertible...) throws -> Any {
         try self.first(effects)
     }
 }
