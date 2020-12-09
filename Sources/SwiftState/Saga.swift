@@ -133,13 +133,26 @@ func startSaga(_ saga: @escaping VoidSaga, in environment: EffectEnvironment, co
 
 public extension Store {
     func runSaga(_ saga: @escaping VoidSaga, on queue: DispatchQueue = .main) {
+        var actionListeners: [UUID: (Action) -> ()] = [:]
+        let sagaMiddleware: Middleware<State> = { _, action, _ in
+            for listener in actionListeners.values {
+                listener(action)
+            }
+        }
+        self.addMiddleware(sagaMiddleware)
+        
         let environment = EffectEnvironment(
             queue: queue,
             state: {self.state},
             actions: {
                 let channel = CoChannel<Action>(bufferType: .conflated)
-                self.addMiddleware { _, action, _ in
-                    try? channel.awaitSend(action)
+                let id = UUID()
+                actionListeners[id] = { action in
+                    do {
+                        try channel.awaitSend(action)
+                    } catch CoroutineError.canceled, CoChannelError.canceled, CoChannelError.closed {
+                        actionListeners.removeValue(forKey: id)
+                    } catch {}
                 }
                 return channel
             },

@@ -77,7 +77,13 @@ public extension Effects {
         }
         
         public func perform(in environment: EffectEnvironment) {
-            environment.dispatch(action)
+            if environment.queue == DispatchQueue.main {
+                environment.dispatch(action)
+            } else {
+                DispatchQueue.main.sync {
+                    environment.dispatch(action)
+                }
+            }
         }
     }
     
@@ -163,8 +169,8 @@ public extension Effects {
         }
     }
     
-    static func fork(_ perform: @escaping VoidSaga) -> Effects.Fork {
-        Effects.Fork(perform)
+    static func fork(on queue: DispatchQueue? = nil, _ perform: @escaping VoidSaga) -> Effects.Fork {
+        Effects.Fork(perform, on: queue)
     }
 }
 
@@ -192,6 +198,7 @@ public extension Effects {
             let actionChannel = environment.actions()
             while true {
                 if let action = try actionChannel.awaitReceive() as? ActionType, predicate(action) {
+                    actionChannel.close()
                     return action
                 }
             }
