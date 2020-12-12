@@ -72,6 +72,13 @@ public class Store<State> {
     public func connect<P: Publisher>(to publisher: P) -> AnyCancellable where P.Output: Action, P.Failure == Never {
         publisher.sink(receiveValue: self.dispatch)
     }
+    
+    /// View onto a sub-state of the store that does only update when the value in its scope changes (i.e. duplicates are removed)
+    /// - Parameter keyPath: Path to the sub-state
+    /// - Returns: A view onto a sub-state of the store
+    public func scoped<SubState>(to keyPath: KeyPath<State, SubState>) -> StoreView<State, SubState> {
+        StoreView(viewing: keyPath, in: self)
+    }
 }
 
 extension Store: ObservableObject {}
