@@ -175,12 +175,14 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func fork<Input>(_ input: Input, _ perform: @escaping Saga<Input>) throws -> SagaHandle {
         try self.fork { yield in
             try perform(input, yield)
         }
     }
     
+    @discardableResult
     func fork(_ perform: @escaping VoidSaga) throws -> SagaHandle {
         try self(Effects.Fork(perform))
     }
@@ -358,14 +360,17 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func takeLeading<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
         try self(Effects.takeLeading(ActionType.self, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeLeading(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.TakeLeading(predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeLeading<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.TakeLeading(mapping, saga: saga))
     }
@@ -428,14 +433,17 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func takeEvery<Output: Action>(_: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeEvery(Output.self, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeEvery(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.takeEvery(predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeEvery<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeEvery(mapping, saga: saga))
     }
@@ -500,14 +508,17 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func takeLatest<Output: Action>(_: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeLatest(Output.self, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeLatest(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.takeLatest(predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func takeLatest<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeLatest(mapping, saga: saga))
     }
@@ -578,14 +589,17 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func debounce<Output: Action>(interval: TimeInterval, _: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, Output.self, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func debounce(interval: TimeInterval, predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func debounce<Output>(interval: TimeInterval, _ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, mapping, saga: saga))
     }
@@ -657,14 +671,17 @@ public extension Effects {
 }
 
 public extension Yielder {
+    @discardableResult
     func throttle<Output: Action>(interval: TimeInterval, _: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, Output.self, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func throttle(interval: TimeInterval, predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, predicate: predicate, saga: saga))
     }
     
+    @discardableResult
     func throttle<Output>(interval: TimeInterval, _ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, mapping, saga: saga))
     }
