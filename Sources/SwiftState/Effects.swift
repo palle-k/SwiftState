@@ -59,10 +59,12 @@ public extension Effects.Select where State == Substate {
 }
 
 public extension Yielder {
+    /// Retrieves the current state from the store
     func select<State>(_ type: State.Type = State.self) throws -> State {
         try self(Effects.Select(\State.self))
     }
     
+    /// Retrieves the current state from the store
     func select<State, SubState>(_ path: KeyPath<State, SubState>) throws -> SubState {
         try self(Effects.Select(path))
     }
@@ -93,6 +95,7 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Dispatches an action on the store
     func put(_ action: Action) throws {
         try self(Effects.Put(action: action))
     }
@@ -117,6 +120,7 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Calls a function that uses a completion handler
     func call<Output>(_ execute: @escaping (_ completion: @escaping (Output) -> Void) -> Void) throws -> Output {
         try self(Effects.Call(execute))
     }
@@ -146,6 +150,7 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Sleeps for a given time interval without blocking the thread on which the saga is executing.
     func sleep(_ interval: TimeInterval) throws {
         try self(Effects.Sleep(interval))
     }
@@ -175,6 +180,7 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Runs the provided saga asynchronously
     @discardableResult
     func fork<Input>(_ input: Input, _ perform: @escaping Saga<Input>) throws -> SagaHandle {
         try self.fork { yield in
@@ -182,6 +188,7 @@ public extension Yielder {
         }
     }
     
+    /// Runs the provided saga asynchronously
     @discardableResult
     func fork(_ perform: @escaping VoidSaga) throws -> SagaHandle {
         try self(Effects.Fork(perform))
@@ -268,18 +275,22 @@ fileprivate extension Effects {
 }
 
 public extension Yielder {
+    /// takes the next action matching the query
     func take<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType {
         try self(Effects.take(ActionType.self, predicate: predicate))
     }
     
+    /// takes the next action matching the query
     func take<ActionType: Action>(timeout: TimeInterval, _: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}) throws -> ActionType? {
         return try self(Effects.take(timeout: timeout, ActionType.self, predicate: predicate).generic())
     }
     
+    /// takes the next action matching the query
     func take(predicate: @escaping (Action) -> Bool = {_ in true}) throws -> Action {
         try self(Effects.Take(predicate: predicate))
     }
     
+    /// takes the next action for which the provided closure returns a non-nil result
     func take<Output>(_ mapping: @escaping (Action) -> Output?) throws -> Output {
         try self(Effects.Take(mapping))
     }
@@ -304,6 +315,7 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Takes the next event from a channel.
     func take<Event>(_ channel: EventChannel<Event>) throws -> Event {
         try self(Effects.TakeEvent(channel))
     }
@@ -360,16 +372,19 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Concurrently takes every action matching the predicate. Actions are ignored until the previous instance of the saga completes
     @discardableResult
     func takeLeading<ActionType: Action>(_: ActionType.Type = ActionType.self, predicate: @escaping (ActionType) -> Bool = {_ in true}, saga: @escaping Saga<ActionType>) throws -> SagaHandle {
         try self(Effects.takeLeading(ActionType.self, predicate: predicate, saga: saga))
     }
     
+    /// Concurrently takes every action matching the predicate. Actions are ignored until the previous instance of the saga completes
     @discardableResult
     func takeLeading(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.TakeLeading(predicate: predicate, saga: saga))
     }
     
+    /// Concurrently takes every action matching the predicate. Actions are ignored until the previous instance of the saga completes
     @discardableResult
     func takeLeading<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.TakeLeading(mapping, saga: saga))
@@ -433,16 +448,19 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument
     @discardableResult
     func takeEvery<Output: Action>(_: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeEvery(Output.self, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument
     @discardableResult
     func takeEvery(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.takeEvery(predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument
     @discardableResult
     func takeEvery<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeEvery(mapping, saga: saga))
@@ -508,16 +526,19 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument. If a previous instance of the saga is still running, it is cancelled.
     @discardableResult
     func takeLatest<Output: Action>(_: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeLatest(Output.self, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument. If a previous instance of the saga is still running, it is cancelled.
     @discardableResult
     func takeLatest(predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.takeLatest(predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, passing that action as an argument. If a previous instance of the saga is still running, it is cancelled.
     @discardableResult
     func takeLatest<Output>(_ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.takeLatest(mapping, saga: saga))
@@ -589,16 +610,19 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// concurrently takes every action matching the predicate and runs the provided saga after waiting for an interval, passing that action as an argument, if no other matching action was dispatched in the meantime.
     @discardableResult
     func debounce<Output: Action>(interval: TimeInterval, _: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, Output.self, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga after waiting for an interval, passing that action as an argument, if no other matching action was dispatched in the meantime.
     @discardableResult
     func debounce(interval: TimeInterval, predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga after waiting for an interval, passing that action as an argument, if no other matching action was dispatched in the meantime.
     @discardableResult
     func debounce<Output>(interval: TimeInterval, _ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.debounce(interval: interval, mapping, saga: saga))
@@ -671,16 +695,19 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// concurrently takes every action matching the predicate and runs the provided saga, leaving a time interval between invocations and ignoring actions within that interval.
     @discardableResult
     func throttle<Output: Action>(interval: TimeInterval, _: Output.Type = Output.self, predicate: @escaping (Output) -> Bool = {_ in true}, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, Output.self, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, leaving a time interval between invocations and ignoring actions within that interval.
     @discardableResult
     func throttle(interval: TimeInterval, predicate: @escaping (Action) -> Bool, saga: @escaping Saga<Action>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, predicate: predicate, saga: saga))
     }
     
+    /// concurrently takes every action matching the predicate and runs the provided saga, leaving a time interval between invocations and ignoring actions within that interval.
     @discardableResult
     func throttle<Output>(interval: TimeInterval, _ mapping: @escaping (Action) -> Output, saga: @escaping Saga<Output>) throws -> SagaHandle {
         try self(Effects.throttle(interval: interval, mapping, saga: saga))
@@ -739,19 +766,23 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Performs all provided effects and returns upon completion
     func all<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> [BaseEffect.Response] {
         try self(Effects.all(effects))
     }
     
+    /// Performs all provided effects and returns upon completion
     func all<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> [BaseEffect.Response] {
         try self.all(effects)
     }
     
+    /// Performs all provided effects and returns upon completion
     @discardableResult
     func all(_ effects: [AnyEffectConvertible]) throws -> [Any] {
         try self.all(effects.map {$0.wrapped()} as [AnyEffect])
     }
     
+    /// Performs all provided effects and returns upon completion
     @discardableResult
     func all(_ effects: AnyEffectConvertible...) throws -> [Any] {
         try all(effects)
@@ -803,19 +834,23 @@ public extension Effects {
 }
 
 public extension Yielder {
+    /// Performs all provided effects and returns upon completion of the fastest one
     func first<BaseEffect: Effect>(_ effects: [BaseEffect]) throws -> BaseEffect.Response {
         try self(Effects.first(effects))
     }
     
+    /// Performs all provided effects and returns upon completion of the fastest one
     func first<BaseEffect: Effect>(_ effects: BaseEffect...) throws -> BaseEffect.Response {
         try self.first(effects)
     }
     
+    /// Performs all provided effects and returns upon completion of the fastest one
     @discardableResult
     func first(_ effects: [AnyEffectConvertible]) throws -> Any {
         try self(Effects.First(effects.map {$0.wrapped()}))
     }
     
+    /// Performs all provided effects and returns upon completion of the fastest one
     @discardableResult
     func first(_ effects: AnyEffectConvertible...) throws -> Any {
         try self.first(effects)
@@ -839,7 +874,45 @@ public extension Effects {
         }
     }
     
+    /// Runs the provided saga and waits for its completion
     static func run(_ saga: @escaping VoidSaga) -> Effects.Run {
         Effects.Run(saga)
+    }
+}
+
+public extension Effects {
+    struct Async<Output>: Effect {
+        public typealias Response = Output
+        
+        let queue: DispatchQueue
+        let block: () -> Output
+        
+        init(_ queue: DispatchQueue = .global(), _ block: @escaping () -> Output) {
+            self.queue = queue
+            self.block = block
+        }
+        
+        public func perform(in environment: EffectEnvironment) throws -> Output {
+            let callTask: Effects.Call<Output> = Effects.call { completion in
+                self.queue.async {
+                    let result = self.block()
+                    environment.queue.async {
+                        completion(result)
+                    }
+                }
+            }
+            return try callTask.perform(in: environment)
+        }
+    }
+    
+    static func async<Output>(_ queue: DispatchQueue = .global(), _ block: @escaping () -> Output) -> Effects.Async<Output> {
+        Effects.Async(queue, block)
+    }
+}
+
+extension Yielder {
+    /// Runs the provided block of code on another queue, yielding the current coroutine until its completion, without blocking the thread on which the coroutine runs.
+    func async<Output>(_ queue: DispatchQueue = .global(), _ block: @escaping () -> Output) throws -> Output {
+        try self(Effects.Async(queue, block))
     }
 }
