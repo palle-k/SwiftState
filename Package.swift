@@ -16,7 +16,7 @@ let package = Package(
             targets: ["SwiftState"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/belozierov/SwiftCoroutine.git", Package.Dependency.Requirement.upToNextMajor(from: "2.1.0"))
+        .package(url: "https://github.com/belozierov/SwiftCoroutine.git", Package.Dependency.Requirement.exact("2.1.9"))
     ],
     targets: [
         .target(
